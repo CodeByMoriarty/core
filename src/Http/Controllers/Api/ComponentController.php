@@ -13,9 +13,7 @@ use Cachet\Http\Resources\Component as ComponentResource;
 use Cachet\Models\Component;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Pagination\Paginator;
 use Illuminate\Routing\Controller;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
@@ -35,8 +33,6 @@ class ComponentController extends Controller
 
     /**
      * List Components
-     *
-     * @response AnonymousResourceCollection<Paginator<ComponentResource>>
      */
     #[QueryParameter('filter[status]', 'Filter by status', type: ComponentStatusEnum::class, example: 1)]
     #[QueryParameter('filter[name]', 'Filter by name.', example: 'My Component')]
@@ -77,9 +73,10 @@ class ComponentController extends Controller
      */
     public function show(Component $component)
     {
-        $componentQuery = QueryBuilder::for($component)
+
+        $componentQuery = QueryBuilder::for(Component::class)
             ->allowedIncludes(self::ALLOWED_INCLUDES)
-            ->first();
+            ->find($component->id);
 
         return ComponentResource::make($componentQuery)
             ->response()

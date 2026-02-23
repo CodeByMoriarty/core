@@ -4,12 +4,14 @@ namespace Cachet\Models;
 
 use Cachet\Database\Factories\ScheduleFactory;
 use Cachet\Enums\ScheduleStatusEnum;
+use Cachet\QueryBuilders\ScheduleBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -29,11 +31,10 @@ use Illuminate\Support\Str;
  * @property Collection<int, Update> $updates
  *
  * @method static ScheduleFactory factory($count = null, $state = [])
- * @method static Builder<static>|static query()
- * @method static Builder<static>|static incomplete()
- * @method static Builder<static>|static inProgress()
- * @method static Builder<static>|static inTheFuture()
- * @method static Builder<static>|static inThePast()
+ * @method static ScheduleBuilder incomplete()
+ * @method static ScheduleBuilder inProgress()
+ * @method static ScheduleBuilder inTheFuture()
+ * @method static ScheduleBuilder inThePast()
  */
 class Schedule extends Model
 {
@@ -69,7 +70,8 @@ class Schedule extends Model
 
                 return match (true) {
                     $this->scheduled_at->gte($now) => ScheduleStatusEnum::upcoming,
-                    $this->completed_at === null => ScheduleStatusEnum::in_progress,
+                    $this->completed_at === null,
+                    $this->completed_at->gte($now) => ScheduleStatusEnum::in_progress,
                     default => ScheduleStatusEnum::complete,
                 };
             }
@@ -79,14 +81,26 @@ class Schedule extends Model
     /**
      * Get the components affected by this schedule.
      *
-     * @return BelongsToMany<Component, $this>
+     * @return BelongsToMany<Component, $this, ScheduleComponent>
      */
     public function components(): BelongsToMany
     {
         return $this->belongsToMany(
             Component::class,
             'schedule_components',
-        );
+        )->using(ScheduleComponent::class)
+            ->withPivot(['component_status'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the schedule components pivot entries.
+     *
+     * @return HasMany<ScheduleComponent, $this>
+     */
+    public function scheduleComponents(): HasMany
+    {
+        return $this->hasMany(ScheduleComponent::class);
     }
 
     /**
@@ -108,47 +122,14 @@ class Schedule extends Model
     }
 
     /**
-     * Scope schedules that are incomplete.
+     * Create a new Eloquent query builder for the model.
      *
-     * @param  Builder<$this>  $query
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return ScheduleBuilder
      */
-    public function scopeIncomplete(Builder $query): void
+    public function newEloquentBuilder($query)
     {
-        $query->whereNull('completed_at');
-    }
-
-    /**
-     * Scope schedules that are in progress.
-     *
-     * @param  Builder<$this>  $query
-     */
-    public function scopeInProgress(Builder $query): void
-    {
-        $query->whereDate('scheduled_at', '<=', Carbon::now())
-            ->where(function (Builder $query) {
-                $query->whereDate('completed_at', '>=', Carbon::now())
-                    ->orWhereNull('completed_at');
-            });
-    }
-
-    /**
-     * Scopes schedules to those in the future.
-     *
-     * @param  Builder<$this>  $query
-     */
-    public function scopeInTheFuture(Builder $query): void
-    {
-        $query->whereDate('scheduled_at', '>=', Carbon::now());
-    }
-
-    /**
-     * Scopes schedules to those scheduled in the past.
-     *
-     * @param  Builder<$this>  $query
-     */
-    public function scopeInThePast(Builder $query): void
-    {
-        $query->where('completed_at', '<=', Carbon::now());
+        return new ScheduleBuilder($query);
     }
 
     /**

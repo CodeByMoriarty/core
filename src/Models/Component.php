@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property bool $enabled
  * @property array<string, mixed> $meta
  * @property ?ComponentGroup $componentGroup
+ * @property-read IncidentComponent|null $pivot
  *
  * @method static Builder<static>|static disabled()
  * @method static Builder<static>|static enabled()
@@ -83,12 +84,24 @@ class Component extends Model
     /**
      * Get the incidents for the component.
      *
-     * @return BelongsToMany<Incident, $this>
+     * @return BelongsToMany<Incident, $this, IncidentComponent>
      */
     public function incidents(): BelongsToMany
     {
         return $this->belongsToMany(Incident::class, 'incident_components')
             ->using(IncidentComponent::class)
+            ->withTimestamps()
+            ->withPivot('component_status');
+    }
+
+    /**
+     * Get the schedules for the component.
+     *
+     * @return BelongsToMany<Schedule, $this>
+     */
+    public function schedules(): BelongsToMany
+    {
+        return $this->belongsToMany(Schedule::class, 'schedule_components')
             ->withTimestamps()
             ->withPivot('component_status');
     }
